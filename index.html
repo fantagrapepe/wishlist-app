@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>欲しい株リスト</title>
+
+<style>
+
+body {
+  background-color: #121212;
+  color: white;
+  font-family: sans-serif;
+  padding: 20px;
+}
+
+.card {
+  background-color: #1e1e1e;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  margin-bottom: 20px;
+}
+
+input {
+  background-color: #2a2a2a;
+  color: white;
+  border: 1px solid #555;
+  padding: 8px;
+  border-radius: 8px;
+  width: 200px;
+}
+
+button {
+  background-color: #333;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+button:hover {
+  background-color: #555;
+}
+
+.stock-card {
+  background-color: #2a2a2a;
+  padding: 15px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+
+.stock-name {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.info {
+  margin: 6px 0;
+}
+
+</style>
+
+</head>
+<body>
+
+<div class="card">
+
+<h1>欲しい株リスト</h1>
+
+<p>銘柄名</p>
+<input id="name" type="text">
+
+<p>現在株価</p>
+<input id="currentPrice" type="number">
+
+<p>目標株価</p>
+<input id="targetPrice" type="number">
+
+<p>利回り (%)</p>
+<input id="yield" type="number" step="0.1">
+
+<p>メモ</p>
+<input id="memo" type="text">
+
+<br><br>
+
+<button onclick="addStock()">
+追加
+</button>
+
+<button onclick="undoDelete()">
+削除を取り消す
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>登録済み銘柄</h2>
+
+<div id="list"></div>
+
+</div>
+
+<script>
+
+// ====================
+// データ
+// ====================
+
+let stocks = [];
+
+let lastDeleted = null;
+
+let editingIndex = -1;
+
+// ====================
+// 保存
+// ====================
+
+function saveData() {
+
+  localStorage.setItem(
+    "wishStocks",
+    JSON.stringify(stocks)
+  );
+}
+
+// ====================
+// 読み込み
+// ====================
+
+function loadData() {
+
+const data =
+  localStorage.getItem("wishStocks");
+
+if (data) {
+
+  stocks =
+    JSON.parse(data);
+
+  // null削除
+  stocks =
+    stocks.filter(
+      stock => stock
+    );
+
+  saveData();
+}
+}
+
+// ====================
+// 追加・修正
+// ====================
+
+function addStock() {
+
+
+  const name =
+    document.getElementById("name").value;
+
+  const currentPrice =
+    Number(
+      document.getElementById(
+        "currentPrice"
+      ).value
+    );
+
+  const targetPrice =
+    Number(
+      document.getElementById(
+        "targetPrice"
+      ).value
+    );
+
+  const yieldRate =
+    document.getElementById(
+      "yield"
+    ).value;
+
+  const memo =
+    document.getElementById(
+      "memo"
+    ).value;
+
+  if (!name) return;
+
+  const stockData = {
+
+    name,
+    currentPrice,
+    targetPrice,
+    yieldRate,
+    memo
+
+  };
+
+  if (editingIndex >= 0) {
+
+    stocks[editingIndex] =
+      stockData;
+
+    editingIndex = -1;
+
+  } else {
+
+    stocks.push(stockData);
+  }
+
+  saveData();
+  update();
+
+  document.getElementById(
+    "name"
+  ).value = "";
+
+  document.getElementById(
+    "currentPrice"
+  ).value = "";
+
+  document.getElementById(
+    "targetPrice"
+  ).value = "";
+
+  document.getElementById(
+    "yield"
+  ).value = "";
+
+  document.getElementById(
+    "memo"
+  ).value = "";
+}
+
+// ====================
+// 削除
+// ====================
+
+function deleteStock(index) {
+
+  lastDeleted = {
+
+    stock: stocks[index],
+    index: index
+  };
+
+  stocks.splice(index, 1);
+
+  saveData();
+  update();
+}
+
+// ====================
+// 削除取り消し
+// ====================
+
+function undoDelete() {
+
+  if (!lastDeleted) return;
+
+  stocks.splice(
+
+    lastDeleted.index,
+    0,
+    lastDeleted.stock
+
+  );
+
+  lastDeleted = null;
+
+  saveData();
+  update();
+}
+
+// ====================
+// 修正
+// ====================
+
+function editStock(index) {
+
+  const stock =
+    stocks[index];
+
+  document.getElementById(
+    "name"
+  ).value =
+    stock.name;
+
+  document.getElementById(
+    "currentPrice"
+  ).value =
+    stock.currentPrice;
+
+  document.getElementById(
+    "targetPrice"
+  ).value =
+    stock.targetPrice;
+
+  document.getElementById(
+    "yield"
+  ).value =
+    stock.yieldRate;
+
+  document.getElementById(
+    "memo"
+  ).value =
+    stock.memo;
+
+  editingIndex = index;
+}
+
+// ====================
+// 表示更新
+// ====================
+
+function update() {
+
+  const list =
+    document.getElementById("list");
+
+  list.innerHTML = "";
+
+  stocks.forEach((stock, index) => {
+
+    if (!stock) return;
+
+    let diffText = "";
+
+    if (
+      stock.currentPrice >
+      stock.targetPrice
+    ) {
+
+      diffText =
+        "あと" +
+        (
+          stock.currentPrice -
+          stock.targetPrice
+        ) +
+        "円";
+
+    } else {
+
+      diffText =
+        "🔥 買いライン到達";
+    }
+
+    list.innerHTML += `
+
+      <div class="stock-card">
+
+        <div class="stock-name">
+          ${stock.name}
+        </div>
+
+        <div class="info">
+          現在株価：
+          ${stock.currentPrice}円
+        </div>
+
+        <div class="info">
+          目標株価：
+          ${stock.targetPrice}円
+        </div>
+
+        <div class="info">
+          ${diffText}
+        </div>
+
+        <div class="info">
+          利回り：
+          ${stock.yieldRate}%
+        </div>
+
+        <div class="info">
+           ${stock.memo}
+        </div>
+
+        <br>
+
+        <button
+          onclick="editStock(${index})">
+          修正
+        </button>
+
+        <button
+          onclick="deleteStock(${index})">
+          削除
+        </button>
+
+      </div>
+
+    `;
+  });
+}
+
+// ====================
+// 起動
+// ====================
+
+loadData();
+update();
+
+</script>
+
+</body>
+</html>
