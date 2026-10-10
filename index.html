@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -6,7 +7,6 @@
 <title>欲しい株リスト</title>
 
 <style>
-
 body {
   background-color: #121212;
   color: white;
@@ -23,12 +23,19 @@ body {
 }
 
 input {
+  display: block;
   background-color: #2a2a2a;
   color: white;
   border: 1px solid #555;
   padding: 8px;
   border-radius: 8px;
   width: 200px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+p {
+  margin-bottom: 8px;
 }
 
 button {
@@ -39,6 +46,7 @@ button {
   border-radius: 10px;
   cursor: pointer;
   margin-right: 10px;
+  margin-bottom: 6px;
 }
 
 button:hover {
@@ -50,21 +58,33 @@ button:hover {
   padding: 15px;
   border-radius: 12px;
   margin-bottom: 10px;
+  overflow-wrap: anywhere;
 }
 
 .stock-name {
   font-size: 20px;
   font-weight: bold;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .info {
-  margin: 6px 0;
+  margin: 9px 0;
+}
+
+.highlight {
+  color: #4ade80;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.target-reached {
+  color: #fb923c;
+  font-weight: bold;
 }
 
 </style>
-
 </head>
+
 <body>
 
 <div class="card">
@@ -72,38 +92,33 @@ button:hover {
 <h1>欲しい株リスト</h1>
 
 <p>銘柄名</p>
-<input id="name" type="text">
+<input id="name" type="text" placeholder="例：トヨタ自動車">
 
-<p>現在株価</p>
-<input id="currentPrice" type="number">
+<p>現在株価（円）</p>
+<input id="currentPrice" type="number" min="0" step="any">
 
-<p>目標株価</p>
-<input id="targetPrice" type="number">
+<p>年間配当金額（1株あたり・円）</p>
+<input id="annualDividend" type="number" min="0" step="any"
+       placeholder="例：100">
 
-<p>利回り (%)</p>
-<input id="yield" type="number" step="0.1">
+<p>目標利回り（%）</p>
+<input id="yield" type="number" min="0" step="any"
+       placeholder="例：4">
 
 <p>メモ</p>
-<input id="memo" type="text">
+<input id="memo" type="text" placeholder="購入条件など">
 
-<br><br>
+<br>
 
-<button onclick="addStock()">
-追加
-</button>
-
-<button onclick="undoDelete()">
-削除を取り消す
-</button>
+<button onclick="addStock()">追加</button>
+<button onclick="cancelEdit()">入力をリセット</button>
+<button onclick="undoDelete()">削除を取り消す</button>
 
 </div>
 
 <div class="card">
-
 <h2>登録済み銘柄</h2>
-
 <div id="list"></div>
-
 </div>
 
 <script>
@@ -113,45 +128,45 @@ button:hover {
 // ====================
 
 let stocks = [];
-
 let lastDeleted = null;
-
 let editingIndex = -1;
 
 // ====================
-// 保存
+// 保存・読み込み
 // ====================
 
 function saveData() {
-
-  localStorage.setItem(
-    "wishStocks",
-    JSON.stringify(stocks)
-  );
+  localStorage.setItem("wishStocks", JSON.stringify(stocks));
 }
-
-// ====================
-// 読み込み
-// ====================
 
 function loadData() {
+  const data = localStorage.getItem("wishStocks");
 
-const data =
-  localStorage.getItem("wishStocks");
+  if (data) {
+    try {
+      const parsed = JSON.parse(data);
 
-if (data) {
-
-  stocks =
-    JSON.parse(data);
-
-  // null削除
-  stocks =
-    stocks.filter(
-      stock => stock
-    );
-
-  saveData();
+      stocks = Array.isArray(parsed)
+        ? parsed.filter(stock => stock && typeof stock === "object")
+        : [];
+    } catch (error) {
+      stocks = [];
+    }
+  }
 }
+
+// ====================
+// 入力欄リセット
+// ====================
+
+function cancelEdit() {
+  document.getElementById("name").value = "";
+  document.getElementById("currentPrice").value = "";
+  document.getElementById("annualDividend").value = "";
+  document.getElementById("yield").value = "";
+  document.getElementById("memo").value = "";
+
+  editingIndex = -1;
 }
 
 // ====================
@@ -159,81 +174,53 @@ if (data) {
 // ====================
 
 function addStock() {
+  const name = document.getElementById("name").value.trim();
+  const currentInput = document.getElementById("currentPrice").value;
+  const dividendInput = document.getElementById("annualDividend").value;
+  const yieldInput = document.getElementById("yield").value;
+  const memo = document.getElementById("memo").value;
 
+  const currentPrice = Number(currentInput);
+  const annualDividend = Number(dividendInput);
+  const yieldRate = Number(yieldInput);
 
-  const name =
-    document.getElementById("name").value;
+  if (!name) {
+    alert("銘柄名を入力してください");
+    return;
+  }
 
-  const currentPrice =
-    Number(
-      document.getElementById(
-        "currentPrice"
-      ).value
-    );
+  if (currentInput === "" || dividendInput === "" || yieldInput === "") {
+    alert("現在株価・年間配当金額・目標利回りを入力してください");
+    return;
+  }
 
-  const targetPrice =
-    Number(
-      document.getElementById(
-        "targetPrice"
-      ).value
-    );
-
-  const yieldRate =
-    document.getElementById(
-      "yield"
-    ).value;
-
-  const memo =
-    document.getElementById(
-      "memo"
-    ).value;
-
-  if (!name) return;
+  if (
+    !Number.isFinite(currentPrice) || currentPrice <= 0 ||
+    !Number.isFinite(annualDividend) || annualDividend < 0 ||
+    !Number.isFinite(yieldRate) || yieldRate <= 0
+  ) {
+    alert("数値を正しく入力してください。目標利回りは0より大きい値にしてください");
+    return;
+  }
 
   const stockData = {
-
     name,
     currentPrice,
-    targetPrice,
+    annualDividend,
     yieldRate,
     memo
-
   };
 
   if (editingIndex >= 0) {
-
-    stocks[editingIndex] =
-      stockData;
-
-    editingIndex = -1;
-
+    stocks[editingIndex] = stockData;
   } else {
-
     stocks.push(stockData);
   }
 
+  editingIndex = -1;
   saveData();
   update();
-
-  document.getElementById(
-    "name"
-  ).value = "";
-
-  document.getElementById(
-    "currentPrice"
-  ).value = "";
-
-  document.getElementById(
-    "targetPrice"
-  ).value = "";
-
-  document.getElementById(
-    "yield"
-  ).value = "";
-
-  document.getElementById(
-    "memo"
-  ).value = "";
+  cancelEdit();
 }
 
 // ====================
@@ -241,15 +228,12 @@ function addStock() {
 // ====================
 
 function deleteStock(index) {
-
   lastDeleted = {
-
     stock: stocks[index],
     index: index
   };
 
   stocks.splice(index, 1);
-
   saveData();
   update();
 }
@@ -259,17 +243,12 @@ function deleteStock(index) {
 // ====================
 
 function undoDelete() {
+  if (!lastDeleted) {
+    alert("取り消せる削除データがありません");
+    return;
+  }
 
-  if (!lastDeleted) return;
-
-  stocks.splice(
-
-    lastDeleted.index,
-    0,
-    lastDeleted.stock
-
-  );
-
+  stocks.splice(lastDeleted.index, 0, lastDeleted.stock);
   lastDeleted = null;
 
   saveData();
@@ -281,36 +260,31 @@ function undoDelete() {
 // ====================
 
 function editStock(index) {
+  const stock = stocks[index];
 
-  const stock =
-    stocks[index];
-
-  document.getElementById(
-    "name"
-  ).value =
-    stock.name;
-
-  document.getElementById(
-    "currentPrice"
-  ).value =
-    stock.currentPrice;
-
-  document.getElementById(
-    "targetPrice"
-  ).value =
-    stock.targetPrice;
-
-  document.getElementById(
-    "yield"
-  ).value =
-    stock.yieldRate;
-
-  document.getElementById(
-    "memo"
-  ).value =
-    stock.memo;
+  document.getElementById("name").value = stock.name ?? "";
+  document.getElementById("currentPrice").value = stock.currentPrice ?? "";
+  document.getElementById("annualDividend").value =
+    stock.annualDividend ?? "";
+  document.getElementById("yield").value = stock.yieldRate ?? "";
+  document.getElementById("memo").value = stock.memo ?? "";
 
   editingIndex = index;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ====================
+// HTML表示用の文字処理
+// ====================
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[char]);
 }
 
 // ====================
@@ -318,82 +292,94 @@ function editStock(index) {
 // ====================
 
 function update() {
-
-  const list =
-    document.getElementById("list");
-
+  const list = document.getElementById("list");
   list.innerHTML = "";
 
   stocks.forEach((stock, index) => {
+    const currentPrice = Number(stock.currentPrice) || 0;
+    const annualDividend = Number(stock.annualDividend) || 0;
+    const yieldRate = Number(stock.yieldRate);
 
-    if (!stock) return;
+    // 目標利回りから達成株価を計算
+    const targetPrice =
+      Number.isFinite(yieldRate) && yieldRate > 0
+        ? annualDividend / (yieldRate / 100)
+        : null;
 
-    let diffText = "";
+    // 1円未満は切り捨て
+    const roundedTargetPrice =
+      targetPrice !== null ? Math.floor(targetPrice) : null;
 
-    if (
-      stock.currentPrice >
-      stock.targetPrice
-    ) {
+    const difference =
+      roundedTargetPrice !== null
+        ? currentPrice - roundedTargetPrice
+        : null;
 
-      diffText =
-        "あと" +
-        (
-          stock.currentPrice -
-          stock.targetPrice
-        ) +
-        "円";
+    let diffText = "目標株価を計算できません";
+    let diffClass = "";
 
-    } else {
-
-      diffText =
-        "🔥 買いライン到達";
+    if (difference !== null && difference > 0) {
+      diffText = `あと${difference.toLocaleString("ja-JP")}円`;
+    } else if (difference !== null) {
+      diffText = "🔥 目標株価に到達";
+      diffClass = "target-reached";
     }
 
-    list.innerHTML += `
+    // 現在利回りを計算
+    const currentYield =
+      currentPrice > 0
+        ? (annualDividend / currentPrice) * 100
+        : null;
 
+    const currentYieldText =
+      currentYield !== null
+        ? currentYield.toFixed(2) + "%"
+        : "—";
+
+    const targetPriceText =
+      roundedTargetPrice !== null
+        ? roundedTargetPrice.toLocaleString("ja-JP") + "円"
+        : "—";
+
+    list.innerHTML += `
       <div class="stock-card">
 
         <div class="stock-name">
-          ${stock.name}
+          ${escapeHTML(stock.name)}
         </div>
 
         <div class="info">
           現在株価：
-          ${stock.currentPrice}円
+          ${currentPrice.toLocaleString("ja-JP")}円
         </div>
 
         <div class="info">
           目標株価：
-          ${stock.targetPrice}円
+          <span class="highlight">${targetPriceText}</span>
         </div>
 
-        <div class="info">
+        <div class="info ${diffClass}">
           ${diffText}
         </div>
 
         <div class="info">
-          利回り：
-          ${stock.yieldRate}%
+          現在利回り：${currentYieldText}
         </div>
 
         <div class="info">
-           ${stock.memo}
+          目標利回り：${Number.isFinite(yieldRate) ? yieldRate + "%" : "未設定"}
+        </div>
+
+        <div class="info">
+          メモ：${escapeHTML(stock.memo || "なし")}
         </div>
 
         <br>
 
-        <button
-          onclick="editStock(${index})">
-          修正
-        </button>
-
-        <button
-          onclick="deleteStock(${index})">
-          削除
-        </button>
+        <button onclick="editStock(${index})">修正</button>
+        <button onclick="deleteStock(${index})">削除</button>
 
       </div>
-
     `;
   });
 }
